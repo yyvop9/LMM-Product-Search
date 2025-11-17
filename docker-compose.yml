@@ -1,0 +1,58 @@
+# C:/LMM-Product-Search/docker-compose.yml
+
+version: '3.8' # Docker Compose 버전
+
+services:
+  # --- 3. 프론트엔드 (React) 서비스 ---
+  frontend:
+    build:
+      context: ./frontend # ./frontend 폴더의 Dockerfile을 사용
+    ports:
+      - "5173:5173" # 호스트(PC) 5173 포트와 컨테이너 5173 포트 연결
+    volumes:
+      # (개발용) 호스트의 frontend 코드가 바뀌면 컨테이너 안에도 바로 반영
+      - ./frontend:/app
+      # (개발용) node_modules는 볼륨에서 제외 (컨테이너 안의 것 사용)
+      - /app/node_modules
+    # (중요) 백엔드 서비스가 켜진 후에 프론트엔드를 켬
+    depends_on:
+      - backend
+
+  # --- 2. 백엔드 (FastAPI) 서비스 ---
+  backend:
+    build:
+      context: ./backend # ./backend 폴더의 Dockerfile을 사용
+    ports:
+      - "8000:8000" # 호스트 8000 포트와 컨테이너 8000 포트 연결
+    volumes:
+      # (중요!) 호스트의 ./data 폴더를 컨테이너 안의 /data 폴더로 연결
+      # (이래야 main.py가 product_vectors.pkl 파일을 찾을 수 있음)
+      - ./data:/data
+      # (개발용) 호스트의 backend 코드가 바뀌면 컨테이너 안에도 바로 반영
+      - ./backend:/app
+    environment:
+      # (중요!) backend/.env 파일의 DB_HOST 값을 'db'로 바꿔야 함
+      - DB_HOST=db # 'localhost' 대신 Docker 네트워크의 'db' 서비스 이름을 사용
+      # (주의) .env 파일이 우선 적용되므로, .env 파일 수정이 더 확실함
+    # (중요) db(MySQL) 서비스가 켜진 후에 백엔드를 켬
+    depends_on:
+      - db
+
+  # --- 1. 데이터베이스 (MySQL) 서비스 ---
+  db:
+    image: mysql:8.0 # Docker Hub의 공식 MySQL 8.0 이미지 사용
+    ports:
+      # (선택) 호스트 3307 포트와 컨테이너 3306 포트 연결
+      # (로컬 PC의 3306과 충돌 방지)
+      - "3307:3306"
+    environment:
+      # (!!!) 이 값들을 backend/.env의 DB_PASSWORD, DB_NAME과 일치시켜야 함
+      MYSQL_ROOT_PASSWORD: 12345 # (예시: backend/.env의 DB_PASSWORD 값)
+      MYSQL_DATABASE: lmm_project      # (예시: backend/.env의 DB_NAME 값)
+    volumes:
+      # (중요) DB 데이터를 PC에 저장 (컨테이너가 꺼져도 데이터 유지)
+      - mysql-data:/var/lib/mysql
+
+# (중요) Docker가 생성할 볼륨의 이름 정의
+volumes:
+  mysql-data:

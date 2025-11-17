@@ -1,0 +1,34 @@
+# C:/LMM-Product-Search/backend/environment.yml
+# (이게 OS와 상관없이 Docker에서 빌드되는 '설계도'입니다)
+
+name: lmm-backend
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  # --- 1. Conda로 설치할 핵심 패키지 ---
+  - python=3.10
+  # (PyTorch)
+  - pytorch
+  - torchvision
+  - torchaudio
+  # (DB 및 데이터 처리)
+  - pandas
+  - pillow
+  - tqdm
+  - pymysql
+  - cryptography
+  # (Pip 설치 도구)
+  - pip
+
+  # --- 2. Pip으로 설치할 웹/AI 패키지 ---
+  - pip:
+    - fastapi
+    - uvicorn
+    - python-dotenv
+    - transformers
+    - scikit-learn
+    - python-multipart
+  
