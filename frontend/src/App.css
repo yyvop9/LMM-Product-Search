@@ -212,3 +212,93 @@ hr {
   line-height: 1.6;
   color: #555;
 }
+
+.product-brand {
+  font-size: 1.1em;
+  color: #666;
+  font-weight: 600;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.main-product-info h1 {
+  margin-top: 0;
+  font-size: 2.2em;
+  color: #333;
+}
+
+.product-price {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #e60023; /* 핀터레스트 레드 */
+  margin: 20px 0;
+}
+
+/* 메타 정보 박스 (계절, 색상 등) */
+.product-meta-box {
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+}
+
+.meta-row {
+  display: flex;
+  margin-bottom: 10px;
+  font-size: 1.1em;
+}
+
+.meta-row:last-child {
+  margin-bottom: 0;
+}
+
+.meta-label {
+  width: 80px;
+  color: #888;
+  font-weight: 500;
+}
+
+.meta-value {
+  color: #333;
+  font-weight: 600;
+}
+
+.product-description h3 {
+  font-size: 1.3em;
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.product-description p {
+  line-height: 1.8;
+  color: #444;
+  font-size: 1.05em;
+}
+
+/* --- 카드 내부 정보 (그리드 아이템) --- */
+.card-info {
+  padding: 10px 15px 15px;
+}
+
+.card-brand {
+  font-size: 0.8em;
+  color: #999;
+  margin: 0 0 4px 0;
+}
+
+.card-title {
+  margin: 0 0 8px 0;
+  font-size: 0.95em;
+  color: #333;
+  /* 말줄임표 처리 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-price {
+  margin: 0;
+  font-weight: bold;
+  color: #333;
+}

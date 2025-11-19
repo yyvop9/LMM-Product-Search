@@ -1,5 +1,4 @@
-# C:/LMM-Product-Search/backend/environment.yml
-# (이게 OS와 상관없이 Docker에서 빌드되는 '설계도'입니다)
+# backend/environment.yml
 
 name: lmm-backend
 channels:
@@ -10,17 +9,14 @@ channels:
 dependencies:
   # --- 1. Conda로 설치할 핵심 패키지 ---
   - python=3.10
-  # (PyTorch)
   - pytorch
   - torchvision
   - torchaudio
-  # (DB 및 데이터 처리)
   - pandas
   - pillow
   - tqdm
   - pymysql
   - cryptography
-  # (Pip 설치 도구)
   - pip
 
   # --- 2. Pip으로 설치할 웹/AI 패키지 ---
@@ -31,4 +27,5 @@ dependencies:
     - transformers
     - scikit-learn
     - python-multipart
-  
+    - ibm-watsonx-ai  # (!!!) 여기가 핵심입니다 (OpenAI 대신 사용)
+    - deep-translator

@@ -1,106 +1,63 @@
-// C:/LMM-Product-Search/frontend/src/pages/ProductDetailPage.jsx
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom'; // (!!!) Link 추가
+import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import '../App.css'; // (!!!) [수정 1] CSS 임포트 추가 (UI 깨짐 해결)
+import '../App.css';
 
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 function ProductDetailPage() {
-  const { productId } = useParams(); // URL에서 상품 ID 가져오기
-  
-  // [수정 2] state 추가
-  const [product, setProduct] = useState(null); // 메인 상품 정보
-  const [relatedProducts, setRelatedProducts] = useState([]); // 연관 상품 목록
+  const { productId } = useParams();
+  const [product, setProduct] = useState(null);
+  const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
-  // [수정 3] API 호출 로직 (useEffect)
   useEffect(() => {
-    // 상품 ID가 바뀔 때마다 (페이지 이동 시) 데이터를 새로 불러옴
-    const fetchProductData = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      setError(null);
-      setProduct(null);
-      setRelatedProducts([]);
-
       try {
-        // --- API 호출 1: 메인 상품 정보 ---
-        const productRes = await axios.get(`${API_URL}/product/${productId}`);
-        setProduct(productRes.data);
-
-        // --- API 호출 2: 연관 상품 목록 (아이디어 1) ---
-        const relatedRes = await axios.get(`${API_URL}/search/related/${productId}`, {
-          params: { top_k: 10 } // 연관 상품 10개
-        });
-        setRelatedProducts(relatedRes.data);
-
-      } catch (err) {
-        setError("상품 정보를 불러오는 데 실패했습니다.");
-        console.error(err);
-      }
+        const pRes = await axios.get(`${API_URL}/product/${productId}`);
+        setProduct(pRes.data);
+        const rRes = await axios.get(`${API_URL}/search/related/${productId}`, { params: { top_k: 5 } });
+        setRelated(rRes.data);
+      } catch (err) { console.error(err); }
       setLoading(false);
     };
+    if (productId) fetchData();
+  }, [productId]);
 
-    if (productId) {
-      fetchProductData();
-    }
-  }, [productId]); // (!!!) productId가 바뀔 때마다 이 함수가 재실행됨
-
-  // [수정 4] UI 렌더링
-  if (loading) {
-    return <p className="status-message">상품 정보를 불러오는 중...</p>;
-  }
-
-  if (error) {
-    return <p className="status-message error">{error}</p>;
-  }
-
-  if (!product) {
-    return <p className="status-message">상품이 없습니다.</p>;
-  }
+  if (loading || !product) return <p className="status-message">로딩 중...</p>;
 
   return (
     <div className="product-detail-container">
-      {/* --- 1. 메인 상품 정보 --- */}
       <div className="main-product-section">
-        <img 
-          src={`${API_URL}/static/images/${product.image_file}`} 
-          alt={product.product_name}
-          className="main-product-image"
-        />
+        <img src={`${API_URL}/static/images/${product.image_file}`} className="main-product-image" />
         <div className="main-product-info">
-          <h2>{product.product_name}</h2>
-          <p>{product.description || "상품 상세 설명이 없습니다."}</p>
-          <p><strong>상품 ID:</strong> {product.id}</p>
+          <p className="product-brand">{product.brand}</p>
+          <h1>{product.product_name}</h1>
+          <p className="product-price">{product.price?.toLocaleString()}원</p>
+          <div className="product-meta-box">
+             <div className="meta-row"><span className="meta-label">계절</span><span>{product.season}</span></div>
+             <div className="meta-row"><span className="meta-label">색상</span><span>{product.color}</span></div>
+             <div className="meta-row"><span className="meta-label">사이즈</span><span>{product.size}</span></div>
+          </div>
+          <div className="product-description"><h3>상세 설명</h3><p>{product.description}</p></div>
         </div>
       </div>
-
       <hr />
-      
-      {/* --- 2. 연관 상품 목록 (아이디어 1) --- */}
-      <h3>이 상품과 비슷한 추천 상품</h3>
-      
-      {/* (HomePage.jsx의 그리드 재활용) */}
+      <h3>이 상품과 비슷한 스타일</h3>
       <div className="pinterest-grid">
-        {relatedProducts.map((related) => (
-          // (Link로 감싸서, 연관 상품을 누르면 그 상품의 상세 페이지로 또 이동)
-          <Link 
-            to={`/product/${related.id}`} // (!!!) 상세 페이지로 또 이동
-            key={related.id} 
-            className="result-item" 
-            style={{ textDecoration: 'none' }}
-          >
-            <img 
-              src={`${API_URL}/static/images/${related.image_file}`} 
-              alt={related.product_name}
-            />
-            <p><strong>{related.product_name || related.id}</strong></p>
+        {related.map((r) => (
+          <Link to={`/product/${r.id}`} key={r.id} className="result-item" style={{ textDecoration: 'none' }}>
+             <img src={`${API_URL}/static/images/${r.image_file}`} />
+             <div className="card-info">
+               <p className="card-brand">{r.brand}</p>
+               <p className="card-title"><strong>{r.product_name}</strong></p>
+               <p className="card-price">{r.price?.toLocaleString()}원</p>
+             </div>
           </Link>
         ))}
       </div>
     </div>
   );
 }
-
 export default ProductDetailPage;

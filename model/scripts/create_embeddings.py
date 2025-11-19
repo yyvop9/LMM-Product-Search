@@ -2,136 +2,127 @@ import pandas as pd
 from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 import torch
-import pickle  # 파이썬 객체를 파일로 저장하는 라이브러리
-from tqdm import tqdm  # 반복문 진행률을 시각적으로 보여주는 라이브러리
-from pathlib import Path # 파일/폴더 경로를 쉽게 다루기 위한 라이브러리
+import pickle
+from tqdm import tqdm
+from pathlib import Path
 import logging
 
 # --- 0. 로깅 및 경로 설정 ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 이 스크립트 파일(create_embeddings.py)의 위치를 기준으로 경로 설정
-SCRIPT_DIR = Path(__file__).parent # model/scripts/
+# 경로 설정
+SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent # LMM-Product-Search/
 DATA_DIR = PROJECT_ROOT / "data"
 IMAGE_DIR = DATA_DIR / "images"
+CSV_PATH = DATA_DIR / "products.csv"
+OUTPUT_PATH = DATA_DIR / "product_vectors.pkl"
 
-# (!!!) 여기 파일 이름을 실제 파일 이름으로 바꿔주세요 (예: data.csv)
-CSV_PATH = DATA_DIR / "products.csv" 
-
-OUTPUT_PATH = DATA_DIR / "product_vectors.pkl" # 최종 결과물 저장 위치
-
-# 사용할 모델 ID
+# 모델 및 데이터 설정
 MODEL_ID = "openai/clip-vit-base-patch32"
-# 처리할 데이터 개수 (테스트용)
-DATA_SAMPLE_SIZE = 500
-
+DATA_SAMPLE_SIZE = 5000 # (원하는 데이터 개수만큼 설정)
 
 def load_model():
     """CLIP 모델과 프로세서를 로드합니다."""
-    logger.info(f"'{MODEL_ID}' 모델 로드를 시작합니다...")
+    logger.info(f"'{MODEL_ID}' 모델 로드 중...")
     
-    # GPU 사용 가능 여부 확인 (있으면 훨씬 빠름)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"사용할 디바이스: {device}")
 
     try:
-        # (중요) 노트북에서 성공했던 safetensors=True 옵션 사용
         model = CLIPModel.from_pretrained(MODEL_ID, use_safetensors=True).to(device)
         processor = CLIPProcessor.from_pretrained(MODEL_ID, use_safetensors=True)
-        logger.info("✅ 모델 로드 성공!")
         return model, processor, device
     except Exception as e:
         logger.error(f"❌ 모델 로드 실패: {e}")
         return None, None, None
 
-
 def process_images(model, processor, device):
-    """CSV를 읽고, 이미지를 벡터로 변환하여 리스트로 반환합니다."""
+    """이미지를 벡터로 변환합니다 (한글 인코딩 처리 포함)."""
     
-    # --- [DEBUG] 경로 확인 코드 추가 ---
-    print(f"\n--- [DEBUG] CSV 파일 경로: {CSV_PATH}")
-    print(f"--- [DEBUG] CSV 파일 절대 경로: {CSV_PATH.resolve()}")
-    print(f"--- [DEBUG] CSV 파일 존재 여부: {CSV_PATH.exists()}")
-    # --- [DEBUG] ---
-
+    # 1. CSV 파일 읽기 (한글 깨짐 방지)
     try:
-        df = pd.read_csv(CSV_PATH)
-        logger.info(f"'{CSV_PATH}' 파일 로드 성공. (총 {len(df)}개 데이터)")
+        try:
+            # 먼저 utf-8-sig (CSV 표준) 시도
+            df = pd.read_csv(CSV_PATH, encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            # 실패 시 cp949 (윈도우 엑셀 저장 방식) 시도
+            logger.warning("UTF-8 읽기 실패. CP949로 다시 시도합니다...")
+            df = pd.read_csv(CSV_PATH, encoding='cp949')
+            
+        logger.info(f"'{CSV_PATH}' 로드 성공. (총 {len(df)}개)")
+        
+        # [디버깅] 첫 번째 파일명이 한글로 잘 나오는지 확인
+        if not df.empty:
+            print(f"--- [DEBUG] 첫 번째 파일명 확인: {df.iloc[0]['image_filename']}")
+            
     except FileNotFoundError:
-        logger.error(f"❌ 에러: '{CSV_PATH}' 파일을 찾을 수 없습니다.")
+        logger.error(f"❌ 파일 없음: {CSV_PATH}")
+        return []
+    except Exception as e:
+        logger.error(f"❌ CSV 읽기 실패: {e}")
         return []
 
-    # (중요) 테스트를 위해 500개만 샘플링
+    # 2. 데이터 샘플링
     df_sample = df.head(DATA_SAMPLE_SIZE)
-    logger.info(f"데이터 샘플링: {DATA_SAMPLE_SIZE}개 처리 시작...")
+    embeddings_list = []
 
-    embeddings_list = [] # 결과를 저장할 리스트
-
-    # tqdm을 사용하여 반복문 진행 상태 표시
-    for index, row in tqdm(df_sample.iterrows(), total=df_sample.shape[0], desc="이미지 처리 중"):
-        
-        # (!!!) CSV의 'image' 컬럼명을 실제 파일과 맞게 수정하세요 (예: 'id' 또는 'image_file')
-        image_filename = row['image'] 
-        image_path = IMAGE_DIR / image_filename
-        
-        # 'id'는 파일명을 그대로 사용 (예: '1620.jpg')
-        product_id = image_filename
-
+    # 3. 벡터 변환 루프
+    for index, row in tqdm(df_sample.iterrows(), total=len(df_sample), desc="벡터 변환 중"):
         try:
-            # 1. 이미지 열기
+            # (주의) CSV 컬럼명이 'image_filename'인지 확인하세요
+            image_filename = row['image_filename'] 
+            image_path = IMAGE_DIR / image_filename
+            
+            # 이미지 열기
             image = Image.open(image_path)
             
-            # 2. 이미지 처리 (프로세서)
+            # 모델 입력 생성
             inputs = processor(images=image, return_tensors="pt", padding=True).to(device)
             
-            # 3. 벡터 추출 (모델)
-            with torch.no_grad(): # 추론 모드(속도 향상, 메모리 절약)
+            # 벡터 추출
+            with torch.no_grad():
                 image_vector = model.get_image_features(**inputs)
             
-            # [1, 512] -> [512] 차원으로 변경하고, CPU로 이동, numpy 배열로 변환
+            # Numpy 변환 및 저장
             vector_np = image_vector.squeeze().cpu().numpy()
             
-            # 4. 결과 저장
             embeddings_list.append({
-                'id': product_id,
+                'id': image_filename,
                 'vector': vector_np
             })
 
         except FileNotFoundError:
-            logger.warning(f"경고: '{image_path}' 이미지를 찾을 수 없어 건너뜁니다.")
+            # 이미지가 없는 경우 조용히 넘어감 (또는 경고 로그)
+            # logger.warning(f"이미지 없음: {image_filename}")
+            pass 
         except Exception as e:
-            logger.warning(f"경고: '{product_id}' 처리 중 에러 ({e}), 건너뜁니다.")
+            logger.warning(f"에러 ({image_filename}): {e}")
             
     return embeddings_list
 
-
 def save_embeddings(embeddings_list):
-    """변환된 벡터 리스트를 .pkl 파일로 저장합니다."""
-    
+    """결과를 .pkl 파일로 저장합니다."""
     if not embeddings_list:
-        logger.error("❌ 저장할 임베딩 데이터가 없습니다. 스크립트를 종료합니다.")
+        logger.error("❌ 저장할 벡터가 없습니다. (모든 이미지 변환 실패)")
         return
         
     try:
         with open(OUTPUT_PATH, 'wb') as f:
-            # pickle을 사용하여 리스트 객체를 바이너리 파일로 저장
             pickle.dump(embeddings_list, f)
         
         logger.info("="*30)
-        logger.info(f"🎉 성공! 총 {len(embeddings_list)}개의 벡터를")
-        logger.info(f"'{OUTPUT_PATH}' 파일에 저장했습니다.")
+        logger.info(f"🎉 성공! {len(embeddings_list)}개의 벡터를 저장했습니다.")
+        logger.info(f"파일 위치: {OUTPUT_PATH}")
         logger.info("="*30)
-        
     except Exception as e:
         logger.error(f"❌ 파일 저장 실패: {e}")
 
-
-# --- 5. 스크립트 실행 ---
+# --- 실행 ---
 if __name__ == "__main__":
     model, processor, device = load_model()
     
-    if model and processor:
+    if model:
         embeddings = process_images(model, processor, device)
         save_embeddings(embeddings)
