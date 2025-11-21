@@ -1,15 +1,13 @@
-/* C:/LMM-Product-Search/frontend/src/App.css */
-
-/* --- 1. 기본 배경 및 앱 레이아웃 --- */
+/* --- 기본 배경 및 앱 레이아웃 --- */
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  background-color: #f0f2f5; /* (!!!) 핀터레스트 느낌의 옅은 회색 배경 */
+  background-color: #f0f2f5;
   margin: 0;
   padding: 20px;
 }
 
 .App {
-  max-width: 1400px; /* 최대 너비 */
+  max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
   background-color: #ffffff;
@@ -29,20 +27,20 @@ hr {
   margin: 25px 0;
 }
 
-/* --- 2. 검색창 (HomePage) --- */
+/* --- 검색창 UI --- */
 .search-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
-  flex-wrap: wrap; /* 화면 작아지면 줄바꿈 */
+  flex-wrap: wrap;
 }
 
 .search-box {
-  flex: 1; /* 양쪽이 공간을 나눠 가짐 */
-  min-width: 300px; /* 최소 너비 */
+  flex: 1;
+  min-width: 300px;
   display: flex;
-  gap: 10px;
+  gap: 12px;
   padding: 15px;
   border: 1px solid #ddd;
   border-radius: 12px;
@@ -50,7 +48,7 @@ hr {
 }
 
 .search-box input[type="text"] {
-  flex-grow: 1; /* 입력창이 남은 공간 다 차지 */
+  flex-grow: 1;
   border: 1px solid #ccc;
   padding: 10px 12px;
   border-radius: 8px;
@@ -62,83 +60,84 @@ hr {
   align-content: center;
 }
 
-/* 검색 버튼 (핀터레스트 레드) */
+.button-group {
+  display: flex;
+  gap: 10px;
+}
+
+/* 버튼 스타일 */
 .search-box button {
   background-color: #e60023;
   color: white;
   border: none;
-  padding: 10px 16px;
-  border-radius: 8px;
+  padding: 12px 20px;
+  border-radius: 24px;
   cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.2s;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .search-box button:hover:not(:disabled) {
-  background-color: #bd081c;
+  background-color: #ad081b;
+  transform: scale(1.05);
 }
 
 .search-box button:disabled {
-  background-color: #efefef;
-  color: #aaa;
+  background-color: #e0e0e0;
+  color: #a0a0a0;
   cursor: not-allowed;
 }
 
-/* --- 3. 결과 표시 영역 (HomePage) --- */
-.results-container {
-  padding-top: 10px;
+/* AI 버튼 전용 */
+.btn-ai {
+  background: linear-gradient(135deg, #6200ea 0%, #b388ff 100%) !important;
+  box-shadow: 0 4px 10px rgba(98, 0, 234, 0.3);
 }
 
-.status-message {
-  text-align: center;
-  font-size: 1.2em;
-  color: #555;
+.btn-ai:hover:not(:disabled) {
+  box-shadow: 0 6px 14px rgba(98, 0, 234, 0.5);
+  transform: translateY(-2px) scale(1.05);
 }
 
-.status-message.error {
-  color: #d32f2f;
-  font-weight: bold;
+/* 로딩 스피너 */
+.loading-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 8px;
 }
 
-/* 초기 안내 메시지 */
-.info-message {
-  text-align: center;
-  color: #888;
-  font-size: 1.1em;
-  padding: 50px 20px;
-  background-color: #f9f9f9;
-  border-radius: 12px;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* --- 4. 핀터레스트 Masonry 그리드 (HomePage, DetailPage) --- */
+/* --- 결과 그리드 --- */
+.results-container { padding-top: 10px; }
+.status-message { text-align: center; font-size: 1.2em; color: #555; }
+.status-message.error { color: #d32f2f; font-weight: bold; }
+.info-message { text-align: center; color: #888; font-size: 1.1em; padding: 50px 20px; background-color: #f9f9f9; border-radius: 12px; }
+
 .pinterest-grid {
-  /* 컬럼(열) 개수 설정 */
   column-count: 5;
   column-gap: 15px;
 }
 
-/* (반응형) 화면 크기에 따라 컬럼 개수 자동 조절 */
-@media (max-width: 1400px) {
-  .pinterest-grid { column-count: 4; }
-}
-@media (max-width: 1100px) {
-  .pinterest-grid { column-count: 3; }
-}
-@media (max-width: 768px) {
-  .pinterest-grid { column-count: 2; }
-}
-@media (max-width: 480px) {
-  .pinterest-grid { column-count: 1; }
-}
+@media (max-width: 1400px) { .pinterest-grid { column-count: 4; } }
+@media (max-width: 1100px) { .pinterest-grid { column-count: 3; } }
+@media (max-width: 768px) { .pinterest-grid { column-count: 2; } }
+@media (max-width: 480px) { .pinterest-grid { column-count: 1; } }
 
-/* 핀터레스트 카드 아이템 */
 .result-item {
-  display: inline-block; /* (중요) Masonry 레이아웃을 위해 */
+  display: inline-block;
   width: 100%;
   margin-bottom: 15px;
   border-radius: 16px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  overflow: hidden; /* 이미지의 둥근 모서리를 위해 */
+  overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   background-color: #fff;
@@ -149,156 +148,29 @@ hr {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
-.result-item img {
-  width: 100%;
-  display: block;
-}
+.result-item img { width: 100%; display: block; }
 
-.result-item p {
-  padding: 12px 15px;
-  margin: 0;
-  font-size: 0.9em;
-  color: #333;
-  text-align: center;
-}
+.card-info { padding: 10px 15px 15px; }
+.card-brand { font-size: 0.8em; color: #999; margin: 0 0 4px 0; }
+.card-title { margin: 0 0 8px 0; font-size: 0.95em; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-price { margin: 0; font-weight: bold; color: #333; }
 
-/* --- 5. App.jsx 헤더 스타일 --- */
-.app-header {
-  border-bottom: 1px solid #e0e0e0;
-  margin-bottom: 20px;
-}
-.app-header h1 {
-  text-align: left;
-  margin: 10px 0 20px 0;
-}
+/* --- 상세 페이지 --- */
+.app-header { border-bottom: 1px solid #e0e0e0; margin-bottom: 20px; }
+.app-header h1 { text-align: left; margin: 10px 0 20px 0; }
 
-/* --- 6. 상품 상세 페이지 스타일 (DetailPage) --- */
-.product-detail-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
+.product-detail-container { max-width: 1200px; margin: 0 auto; }
+.main-product-section { display: flex; gap: 30px; margin-bottom: 30px; flex-wrap: wrap; }
+.main-product-image { flex: 1; min-width: 300px; max-width: 50%; border-radius: 16px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); object-fit: cover; align-self: flex-start; }
+.main-product-info { flex: 1; min-width: 300px; max-width: 50%; }
+.product-brand { font-size: 1.1em; color: #666; font-weight: 600; margin-bottom: 5px; text-transform: uppercase; }
+.main-product-info h1 { margin-top: 0; font-size: 2.2em; color: #333; }
+.product-price { font-size: 1.8em; font-weight: bold; color: #e60023; margin: 20px 0; }
 
-.main-product-section {
-  display: flex;
-  gap: 30px;
-  margin-bottom: 30px;
-  flex-wrap: wrap; /* 화면 작아지면 줄바꿈 */
-}
+.product-meta-box { background-color: #f9f9f9; padding: 20px; border-radius: 12px; margin-bottom: 30px; }
+.meta-row { display: flex; margin-bottom: 10px; font-size: 1.1em; }
+.meta-label { width: 80px; color: #888; font-weight: 500; }
+.meta-value { color: #333; font-weight: 600; }
 
-.main-product-image {
-  flex: 1; /* 1:1 비율 */
-  min-width: 300px; /* 최소 너비 */
-  max-width: 50%;
-  border-radius: 16px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  object-fit: cover;
-  align-self: flex-start; /* 이미지가 늘어나지 않게 고정 */
-}
-
-.main-product-info {
-  flex: 1; /* 1:1 비율 */
-  min-width: 300px; /* 최소 너비 */
-  max-width: 50%;
-}
-
-.main-product-info h2 {
-  font-size: 2.2em; /* 폰트 크기 살짝 조절 */
-  margin-top: 0;
-  margin-bottom: 15px;
-}
-
-.main-product-info p {
-  font-size: 1.1em;
-  line-height: 1.6;
-  color: #555;
-}
-
-.product-brand {
-  font-size: 1.1em;
-  color: #666;
-  font-weight: 600;
-  margin-bottom: 5px;
-  text-transform: uppercase;
-}
-
-.main-product-info h1 {
-  margin-top: 0;
-  font-size: 2.2em;
-  color: #333;
-}
-
-.product-price {
-  font-size: 1.8em;
-  font-weight: bold;
-  color: #e60023; /* 핀터레스트 레드 */
-  margin: 20px 0;
-}
-
-/* 메타 정보 박스 (계절, 색상 등) */
-.product-meta-box {
-  background-color: #f9f9f9;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 30px;
-}
-
-.meta-row {
-  display: flex;
-  margin-bottom: 10px;
-  font-size: 1.1em;
-}
-
-.meta-row:last-child {
-  margin-bottom: 0;
-}
-
-.meta-label {
-  width: 80px;
-  color: #888;
-  font-weight: 500;
-}
-
-.meta-value {
-  color: #333;
-  font-weight: 600;
-}
-
-.product-description h3 {
-  font-size: 1.3em;
-  border-bottom: 2px solid #eee;
-  padding-bottom: 10px;
-  margin-bottom: 15px;
-}
-
-.product-description p {
-  line-height: 1.8;
-  color: #444;
-  font-size: 1.05em;
-}
-
-/* --- 카드 내부 정보 (그리드 아이템) --- */
-.card-info {
-  padding: 10px 15px 15px;
-}
-
-.card-brand {
-  font-size: 0.8em;
-  color: #999;
-  margin: 0 0 4px 0;
-}
-
-.card-title {
-  margin: 0 0 8px 0;
-  font-size: 0.95em;
-  color: #333;
-  /* 말줄임표 처리 */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-price {
-  margin: 0;
-  font-weight: bold;
-  color: #333;
-}
+.product-description h3 { font-size: 1.3em; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+.product-description p { line-height: 1.8; color: #444; font-size: 1.05em; }

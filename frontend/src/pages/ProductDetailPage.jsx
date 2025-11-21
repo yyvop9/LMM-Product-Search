@@ -30,17 +30,20 @@ function ProductDetailPage() {
   return (
     <div className="product-detail-container">
       <div className="main-product-section">
-        <img src={`${API_URL}/static/images/${product.image_file}`} className="main-product-image" />
+        <img src={`${API_URL}/static/images/${product.image_file}`} className="main-product-image" alt={product.product_name} />
         <div className="main-product-info">
-          <p className="product-brand">{product.brand}</p>
+          <p className="product-brand">{product.brand || "Brand"}</p>
           <h1>{product.product_name}</h1>
           <p className="product-price">{product.price?.toLocaleString()}원</p>
           <div className="product-meta-box">
-             <div className="meta-row"><span className="meta-label">계절</span><span>{product.season}</span></div>
-             <div className="meta-row"><span className="meta-label">색상</span><span>{product.color}</span></div>
-             <div className="meta-row"><span className="meta-label">사이즈</span><span>{product.size}</span></div>
+             <div className="meta-row"><span className="meta-label">계절</span><span className="meta-value">{product.season}</span></div>
+             <div className="meta-row"><span className="meta-label">색상</span><span className="meta-value">{product.color}</span></div>
+             <div className="meta-row"><span className="meta-label">사이즈</span><span className="meta-value">{product.size}</span></div>
           </div>
-          <div className="product-description"><h3>상세 설명</h3><p>{product.description}</p></div>
+          <div className="product-description">
+            <h3>상세 설명</h3>
+            <p>{product.description}</p>
+          </div>
         </div>
       </div>
       <hr />
@@ -48,7 +51,7 @@ function ProductDetailPage() {
       <div className="pinterest-grid">
         {related.map((r) => (
           <Link to={`/product/${r.id}`} key={r.id} className="result-item" style={{ textDecoration: 'none' }}>
-             <img src={`${API_URL}/static/images/${r.image_file}`} />
+             <img src={`${API_URL}/static/images/${r.image_file}`} alt={r.product_name} />
              <div className="card-info">
                <p className="card-brand">{r.brand}</p>
                <p className="card-title"><strong>{r.product_name}</strong></p>

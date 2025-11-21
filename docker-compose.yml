@@ -34,6 +34,7 @@ services:
       # (중요!) backend/.env 파일의 DB_HOST 값을 'db'로 바꿔야 함
       - DB_HOST=db # 'localhost' 대신 Docker 네트워크의 'db' 서비스 이름을 사용
       # (주의) .env 파일이 우선 적용되므로, .env 파일 수정이 더 확실함
+      - PYTHONUNBUFFERED=1
     # (중요) db(MySQL) 서비스가 켜진 후에 백엔드를 켬
     depends_on:
       - db

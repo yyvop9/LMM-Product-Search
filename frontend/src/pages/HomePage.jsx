@@ -29,29 +29,66 @@ function HomePage() {
     <>
       <div className="search-controls">
         <div className="search-box">
-          <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="예: 남자 여름 코디 추천해줘" />
-          <div style={{ display: 'flex', gap: '5px' }}>
-            <button onClick={() => handleSearch('/search/text', { query, top_k: 5 })}>검색</button>
-            <button style={{ backgroundColor: '#6200ea' }} onClick={() => handleSearch('/search/smart', { query, top_k: 5 })}>✨ AI 추천</button>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="예: 남자 여름 코디 추천해줘, 크리스마스 데이트룩"
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch('/search/text', { query, top_k: 5 })}
+          />
+          <div className="button-group">
+            <button 
+              onClick={() => handleSearch('/search/text', { query, top_k: 5 })} 
+              disabled={loading}
+            >
+              {loading ? '...' : '검색'}
+            </button>
+            
+            <button 
+              className="btn-ai"
+              onClick={() => handleSearch('/search/smart', { query, top_k: 5 })} 
+              disabled={loading}
+              title="LLM이 문맥을 이해하고 추천합니다"
+            >
+              {loading ? (
+                <>
+                  <span className="loading-spinner"></span>
+                  분석 중
+                </>
+              ) : (
+                '✨ AI 추천'
+              )}
+            </button>
           </div>
         </div>
+        
         <div className="search-box">
-          <input type="file" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} />
-          <button onClick={() => {
-             const fd = new FormData(); fd.append('file', selectedFile); fd.append('top_k', 5);
-             handleSearch('/search/image', fd, true);
-          }} disabled={!selectedFile}>이미지로 검색</button>
+          <input 
+            type="file" 
+            accept="image/*" 
+            onChange={(e) => setSelectedFile(e.target.files[0])} 
+          />
+          <button 
+            onClick={() => {
+               const fd = new FormData(); fd.append('file', selectedFile); fd.append('top_k', 5);
+               handleSearch('/search/image', fd, true);
+            }} 
+            disabled={!selectedFile || loading}
+          >
+            {loading ? '업로드 중...' : '이미지로 검색'}
+          </button>
         </div>
       </div>
+
       <hr />
+
       <div className="results-container">
-        {loading && <p className="status-message">AI가 분석 중입니다... 🤖</p>}
         {error && <p className="status-message error">{error}</p>}
         
         {results.length === 0 && !loading && !error && (
           <div className="info-message">
-            <p><strong>[✨ AI 추천]</strong> 버튼을 누르면 문맥을 이해하여 추천합니다.</p>
-            <p>예: "크리스마스 데이트룩 추천해줘"</p>
+            <p><strong>[일반 검색]</strong>은 키워드 매칭, <strong>[✨ AI 추천]</strong>은 문맥을 이해하여 추천합니다.</p>
+            <p>이미지를 업로드하거나, 클릭하여 상세 정보를 확인하세요.</p>
           </div>
         )}
 
@@ -61,12 +98,9 @@ function HomePage() {
               <img src={`${API_URL}/static/images/${p.image_file}`} alt={p.product_name} />
               <div className="card-info">
                 <p className="card-title"><strong>{p.product_name}</strong></p>
-                
-                {/* (!!!) [추가] 메인 화면에 가격 표시 */}
                 <p className="card-price" style={{ color: '#e60023', fontWeight: 'bold', margin: '5px 0 0 0' }}>
                   {p.price ? `${p.price.toLocaleString()}원` : ""}
                 </p>
-                
               </div>
             </Link>
           ))}
