@@ -97,7 +97,7 @@ docker-compose up --build
 
 테이블 생성:
 
-docker-compose exec db mysql -u root -p12345 lmm_project
+docker-compose exec db mysql -u root -p(본인db비번으로) lmm_project
 
 
 MySQL 접속 후 아래 SQL 실행:
