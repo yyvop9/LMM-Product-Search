@@ -1,14 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom' // (!!!) 1. import
 import App from './App.jsx'
-import './index.css' // (index.css가 있다면)
-// import './App.css' // (App.css는 App.jsx에서 임포트하므로 여기서 지워도 됨)
+import './index.css'
 
+// [중요] 여기에 BrowserRouter가 있으면 안 됩니다! 
+// App.jsx 안에서 이미 선언했기 때문입니다.
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter> {/* (!!!) 2. <App />을 감싸줌 */}
-      <App />
-    </BrowserRouter>
+    <App />
   </React.StrictMode>,
 )

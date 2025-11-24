@@ -1,5 +1,3 @@
-# backend/environment.yml
-
 name: lmm-backend
 channels:
   - pytorch
@@ -16,6 +14,7 @@ dependencies:
   - pillow
   - tqdm
   - pymysql
+  - sqlalchemy
   - cryptography
   - pip
 
@@ -27,5 +26,8 @@ dependencies:
     - transformers
     - scikit-learn
     - python-multipart
-    - ibm-watsonx-ai  # (!!!) 여기가 핵심입니다 (OpenAI 대신 사용)
+    - python-jose[cryptography]
+    - passlib[bcrypt]
+    - ibm-watsonx-ai
     - deep-translator
+    - safetensors  # (!!!) [추가] 모델 로드 필수 라이브러리
