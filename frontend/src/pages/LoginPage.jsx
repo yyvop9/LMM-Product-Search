@@ -1,116 +1,201 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion'; // 애니메이션 라이브러리
-import { Mail, Lock, Loader2 } from 'lucide-react'; // 아이콘
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, Lock, Mail, ArrowRight, Loader2, Sparkles } from 'lucide-react';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   
-  // 상태 관리
+  // --- 상태 관리 ---
+  const [isLoginMode, setIsLoginMode] = useState(true); // true: 로그인, false: 회원가입
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
+  
+  // 폼 데이터
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    password: ''
+  });
 
-  // 입력값 변경 핸들러
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // 로그인 버튼 클릭 핸들러
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.email || !formData.password) {
+      return alert("이메일과 비밀번호를 입력해주세요.");
+    }
+    if (!isLoginMode && !formData.full_name) {
+      return alert("이름을 입력해주세요.");
+    }
+
     setIsLoading(true);
-    setError('');
+    const endpoint = isLoginMode ? "/auth/login" : "/auth/signup";
 
     try {
-      // [TODO] 실제 백엔드 연동 시 fetch 요청으로 교체
-      // const res = await fetch('http://localhost:8000/auth/token', ...);
-      
-      // 현재는 시뮬레이션 (1초 대기 후 성공 처리)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log("Login Success:", formData);
-      navigate('/home'); // 메인 페이지로 이동
-    } catch (err) {
-      setError("로그인에 실패했습니다. 아이디와 비밀번호를 확인해주세요.");
+      // [핵심 수정] 백엔드가 JSON을 원하므로 JSON으로 전송합니다.
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: { 
+            "Content-Type": "application/json" 
+        },
+        // [핵심 수정] username 필드에 email 값을 매핑하여 JSON 문자열로 전송
+        body: JSON.stringify({
+            // 백엔드가 username 필드를 찾을 가능성이 높으므로 매핑
+            // (만약 백엔드가 email 필드를 원한다면 formData 그대로 보내도 됨)
+            username: formData.email, 
+            email: formData.email,      // 혹시 몰라 둘 다 보냄
+            password: formData.password,
+            full_name: formData.full_name
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        let errorMessage = "요청 처리 중 오류가 발생했습니다.";
+        if (data.detail) {
+          if (typeof data.detail === 'string') {
+             errorMessage = data.detail;
+          } else if (typeof data.detail === 'object') {
+             errorMessage = JSON.stringify(data.detail, null, 2);
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (isLoginMode) {
+        // [로그인 성공]
+        localStorage.setItem("token", data.access_token);
+        localStorage.setItem("user_email", formData.email); 
+        
+        alert(`반가워요, ${formData.email.split('@')[0]}님!`);
+        // [성공 후 이동]
+        window.location.href = "/"; 
+      } else {
+        // [회원가입 성공]
+        alert("회원가입이 완료되었습니다! 이제 로그인을 해주세요.");
+        setIsLoginMode(true); 
+        setFormData({ ...formData, password: "" }); 
+      }
+
+    } catch (error) {
+      console.error("Login Error:", error);
+      alert(`⚠️ 로그인 실패:\n${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-[#050505] text-white overflow-hidden justify-center items-center relative">
-      
-      {/* [Background Effect] 배경 장식용 그라디언트 */}
-      <div className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-pink-600/10 rounded-full blur-[100px]" />
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 selection:bg-violet-500 selection:text-white">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-600/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-      {/* [Main Card] 로그인 폼 컨테이너 */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md bg-white/5 p-10 rounded-3xl border border-white/10 backdrop-blur-xl shadow-2xl z-10"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md bg-[#121212] border border-white/10 rounded-3xl p-8 shadow-2xl relative z-10"
       >
-        {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold tracking-tighter mb-2 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-red-500">
-            Modify
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-violet-600 to-pink-500 mb-5 shadow-lg shadow-violet-900/20">
+            <Sparkles className="text-white" size={24} />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
+            {isLoginMode ? "Welcome Back" : "Create Account"}
           </h1>
-          <p className="text-gray-400 text-sm">AI Fashion Engine Login</p>
+          <p className="text-gray-400 text-sm">
+            {isLoginMode ? "AI 패션 검색 엔진, Modify입니다." : "회원가입하고 나만의 AI 스타일리스트를 만나보세요."}
+          </p>
         </div>
 
-        {/* Form */}
-        <form className="space-y-6" onSubmit={handleLogin}>
-          
-          {/* Email Input */}
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-gray-500 group-focus-within:text-purple-500 transition-colors" />
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <AnimatePresence>
+            {!isLoginMode && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="space-y-1 overflow-hidden"
+              >
+                <label className="text-xs font-bold text-gray-500 ml-1 uppercase tracking-wider">Full Name</label>
+                <div className="relative group">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-violet-400 transition-colors" size={20} />
+                  <input 
+                    type="text" 
+                    name="full_name"
+                    value={formData.full_name}
+                    onChange={handleChange}
+                    placeholder="예: 홍길동"
+                    className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-[#202025] transition-all"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 ml-1 uppercase tracking-wider">Email Address</label>
+            <div className="relative group">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-violet-400 transition-colors" size={20} />
+              <input 
+                type="email" 
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="name@example.com"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-[#202025] transition-all"
+              />
             </div>
-            <input 
-              name="email" 
-              type="email" 
-              required 
-              value={formData.email} 
-              onChange={handleChange} 
-              className="block w-full pl-12 pr-3 py-4 border border-gray-700 rounded-xl bg-[#15151a] text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
-              placeholder="example@modify.ai" 
-            />
           </div>
 
-          {/* Password Input */}
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-500 group-focus-within:text-purple-500 transition-colors" />
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 ml-1 uppercase tracking-wider">Password</label>
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-violet-400 transition-colors" size={20} />
+              <input 
+                type="password" 
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="••••••••"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-violet-500/50 focus:bg-[#202025] transition-all"
+              />
             </div>
-            <input 
-              name="password" 
-              type="password" 
-              required 
-              value={formData.password} 
-              onChange={handleChange} 
-              className="block w-full pl-12 pr-3 py-4 border border-gray-700 rounded-xl bg-[#15151a] text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all" 
-              placeholder="••••••••" 
-            />
           </div>
 
-          {/* Error Message */}
-          {error && <p className="text-red-400 text-sm text-center animate-pulse">{error}</p>}
-
-          {/* Submit Button */}
           <button 
             type="submit" 
-            disabled={isLoading} 
-            className="w-full py-4 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/20 disabled:opacity-70 flex justify-center items-center"
+            disabled={isLoading}
+            className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-all transform active:scale-95 flex items-center justify-center gap-2 mt-8 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
           >
-            {isLoading ? <Loader2 className="animate-spin h-5 w-5" /> : "Sign In"}
+            {isLoading ? (
+              <Loader2 className="animate-spin" size={20} />
+            ) : (
+              <>
+                {isLoginMode ? "Sign In" : "Sign Up"}
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </form>
 
-        {/* Footer */}
-        <div className="mt-6 text-center text-sm text-gray-500">
-          Don't have an account? <span className="text-purple-400 cursor-pointer hover:underline">Sign up</span>
+        <div className="mt-8 text-center pt-6 border-t border-white/5">
+          <p className="text-sm text-gray-500">
+            {isLoginMode ? "계정이 없으신가요?" : "이미 계정이 있으신가요?"}
+            <button 
+              onClick={() => {
+                setIsLoginMode(!isLoginMode);
+                setFormData({ full_name: '', email: '', password: '' });
+              }}
+              className="ml-2 text-violet-400 hover:text-violet-300 font-bold transition-colors"
+            >
+              {isLoginMode ? "회원가입 하기" : "로그인 하기"}
+            </button>
+          </p>
         </div>
       </motion.div>
     </div>

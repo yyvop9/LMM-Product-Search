@@ -1,133 +1,152 @@
-import pandas as pd
-from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
-import torch
-import pickle
-from tqdm import tqdm
-from pathlib import Path
-import logging
 import sys
 import os
+import torch
+import pickle
+import logging
+import pandas as pd
+from PIL import Image
+from pathlib import Path
+from abc import ABC, abstractmethod
+from typing import List, Dict, Any
+from tqdm import tqdm
+from transformers import CLIPProcessor, CLIPModel
 
-# --- 0. 로깅 및 경로 설정 ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# 필요한 경우 SQLAlchemy 관련 임포트 (DB 모드 사용 시)
+# from app.database import SessionLocal
+# from app.models import Product
 
-# 경로 설정 (백엔드 구조에 맞게 조정)
-# 현재 파일 위치: backend/scripts/create_embeddings.py
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent.parent 
-DATA_DIR = PROJECT_ROOT / "data"
-IMAGE_DIR = DATA_DIR / "images"
-CSV_PATH = DATA_DIR / "products.csv"
-OUTPUT_PATH = DATA_DIR / "product_vectors.pkl"
+# --- 로깅 설정 ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("VectorPipeline")
 
-# --- [Configuration] 모델 업그레이드 ---
-# (기존) "openai/clip-vit-base-patch32" -> 512차원
-# (변경) "openai/clip-vit-large-patch14" -> 768차원 (정확도 대폭 상승)
-MODEL_ID = "openai/clip-vit-large-patch14" 
-DATA_SAMPLE_SIZE = 5000 
+class DataStrategy(ABC):
+    """데이터 소스별(CSV vs DB) 데이터를 가져오는 추상 클래스"""
+    @abstractmethod
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        pass
 
-def load_model():
-    """CLIP 모델 로드 (GPU 가속 권장)"""
-    logger.info(f"🚀 모델 로드 중: '{MODEL_ID}'")
-    
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"🖥️  사용 Device: {device}")
+class CsvStrategy(DataStrategy):
+    """CSV 파일에서 데이터를 로드하는 전략"""
+    def __init__(self, csv_path: Path):
+        self.csv_path = csv_path
 
-    try:
-        # safetensors=True는 최신 모델 로딩 표준 (보안/속도)
-        model = CLIPModel.from_pretrained(MODEL_ID, use_safetensors=True).to(device)
-        processor = CLIPProcessor.from_pretrained(MODEL_ID, use_safetensors=True)
-        return model, processor, device
-    except Exception as e:
-        logger.error(f"❌ 모델 로드 실패. 인터넷 연결이나 패키지 버전을 확인하세요.\n에러: {e}")
-        return None, None, None
-
-def process_images(model, processor, device):
-    """이미지를 벡터로 변환 (배치 처리 없음 - 단순 루프)"""
-    
-    if not CSV_PATH.exists():
-        logger.error(f"❌ CSV 파일 없음: {CSV_PATH}")
-        return []
-
-    # 1. CSV 읽기 (인코딩 호환성)
-    try:
-        df = pd.read_csv(CSV_PATH, encoding='utf-8-sig')
-    except UnicodeDecodeError:
-        df = pd.read_csv(CSV_PATH, encoding='cp949')
-    
-    # 데이터 샘플링
-    df = df.head(DATA_SAMPLE_SIZE)
-    logger.info(f"📂 데이터 {len(df)}개 처리 시작...")
-
-    embeddings_list = []
-    success_count = 0
-
-    # 2. 벡터 변환
-    for _, row in tqdm(df.iterrows(), total=len(df), desc="Embedding"):
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        if not self.csv_path.exists():
+            raise FileNotFoundError(f"CSV 없음: {self.csv_path}")
+        
         try:
-            # 컬럼명 방어 로직 (image_filename 또는 filename)
+            df = pd.read_csv(self.csv_path, encoding='utf-8-sig')
+        except UnicodeDecodeError:
+            df = pd.read_csv(self.csv_path, encoding='cp949')
+        
+        # 데이터 정규화하여 반환
+        data = []
+        for _, row in df.iterrows():
             fname = row.get('image_filename') or row.get('filename')
-            if not fname: continue
+            if fname:
+                data.append({
+                    "id": str(row.get('id', fname)),
+                    "filename": str(fname)
+                })
+        return data
 
-            image_path = IMAGE_DIR / str(fname)
+class DbStrategy(DataStrategy):
+    """DB에서 데이터를 로드하는 전략 (SQLAlchemy 의존성 필요)"""
+    def __init__(self, session_factory):
+        self.session_factory = session_factory
+
+    def fetch_data(self) -> List[Dict[str, Any]]:
+        session = self.session_factory()
+        try:
+            # 실제 환경에선 app.models.Product import 필요
+            # products = session.query(Product).all()
+            products = [] # Dummy for demonstration without DB
+            logger.info("DB 연결 및 쿼리 실행 (구현 필요)")
             
-            # 이미지 로드 및 전처리
-            image = Image.open(image_path).convert("RGB") # RGB 변환 중요 (PNG 투명도 이슈 방지)
-            
-            # 모델 추론
-            inputs = processor(images=image, return_tensors="pt", padding=True).to(device)
-            with torch.no_grad():
-                # [Large 모델] 출력 차원: 768
-                image_features = model.get_image_features(**inputs)
+            data = []
+            for p in products:
+                data.append({
+                    "id": str(p.id),
+                    "filename": p.image_file
+                })
+            return data
+        finally:
+            session.close()
+
+class Vectorizer:
+    """CLIP 모델을 로드하고 임베딩을 수행하는 메인 클래스"""
+    
+    MODEL_ID = "openai/clip-vit-large-patch14"
+
+    def __init__(self, base_dir: Path):
+        self.base_dir = base_dir
+        self.image_dir = base_dir / "images"
+        self.output_path = base_dir / "product_vectors.pkl"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._load_model()
+
+    def _load_model(self):
+        logger.info(f"🚀 Device: {self.device} | Model: {self.MODEL_ID}")
+        # safetensors 사용 (Code A의 장점 채용)
+        self.model = CLIPModel.from_pretrained(self.MODEL_ID, use_safetensors=True).to(self.device)
+        self.processor = CLIPProcessor.from_pretrained(self.MODEL_ID, use_safetensors=True)
+
+    def run(self, strategy: DataStrategy):
+        """전략(CSV/DB)에 따라 데이터를 가져와 벡터화 수행"""
+        items = strategy.fetch_data()
+        logger.info(f"📂 처리 대상 데이터: {len(items)}개")
+
+        results = []
+        success_cnt = 0
+
+        for item in tqdm(items, desc="Processing"):
+            try:
+                img_path = self.image_dir / item['filename']
                 
-                # 정규화 (Cosine Similarity 정확도 향상)
-                image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
-            
-            # Numpy 변환
-            vector_np = image_features.squeeze().cpu().numpy()
-            
-            # 결과 저장 (ID는 추후 검색 매핑용)
-            # CSV에 id 컬럼이 있으면 쓰고, 없으면 파일명을 ID로 사용
-            item_id = str(row.get('id', fname))
-            
-            embeddings_list.append({
-                'id': item_id,
-                'vector': vector_np
-            })
-            success_count += 1
+                # 이미지 전처리 (RGB 변환 필수)
+                image = Image.open(img_path).convert("RGB")
+                
+                inputs = self.processor(images=image, return_tensors="pt", padding=True).to(self.device)
+                
+                with torch.no_grad():
+                    features = self.model.get_image_features(**inputs)
+                    # 정규화 (Cosine Similarity용)
+                    features = features / features.norm(p=2, dim=-1, keepdim=True)
+                
+                vector_np = features.squeeze().cpu().numpy()
+                
+                results.append({
+                    "id": item['id'],
+                    "vector": vector_np
+                })
+                success_cnt += 1
 
-        except FileNotFoundError:
-            pass # 이미지 없으면 스킵
-        except Exception as e:
-            # logger.warning(f"Skipped {fname}: {e}")
-            pass
+            except FileNotFoundError:
+                continue # 이미지 없음
+            except Exception as e:
+                # logger.error(f"Error processing {item['filename']}: {e}")
+                pass
 
-    logger.info(f"✨ 변환 완료: {success_count}/{len(df)} 성공")
-    return embeddings_list
+        self._save(results)
+        logger.info(f"✨ 완료: {success_cnt}/{len(items)} 성공")
 
-def save_embeddings(embeddings_list):
-    """벡터 데이터를 pkl 파일로 덤프"""
-    if not embeddings_list:
-        logger.error("❌ 저장할 데이터가 없습니다.")
-        return
-
-    try:
-        with open(OUTPUT_PATH, 'wb') as f:
-            pickle.dump(embeddings_list, f)
-        logger.info(f"💾 저장 완료: {OUTPUT_PATH}")
-        logger.info(f"📊 벡터 차원: {embeddings_list[0]['vector'].shape}") # (768,) 확인용
-    except Exception as e:
-        logger.error(f"❌ 저장 실패: {e}")
+    def _save(self, data):
+        with open(self.output_path, 'wb') as f:
+            pickle.dump(data, f)
+        logger.info(f"💾 저장됨: {self.output_path}")
 
 if __name__ == "__main__":
-    # 1. 모델 로드
-    model, processor, device = load_model()
+    # 환경에 따른 경로 설정 (Code B의 장점 채용)
+    BASE_PATH = Path("/data") if Path("/data").exists() else Path(__file__).resolve().parent.parent / "data"
     
-    if model:
-        # 2. 임베딩 생성
-        embeddings = process_images(model, processor, device)
-        
-        # 3. 파일 저장
-        save_embeddings(embeddings)
+    vectorizer = Vectorizer(base_dir=BASE_PATH)
+
+    # 상황에 따라 전략 선택
+    # CASE 1: CSV 모드
+    csv_strategy = CsvStrategy(BASE_PATH / "products.csv")
+    vectorizer.run(csv_strategy)
+
+    # CASE 2: DB 모드 (필요 시 주석 해제)
+    # from app.database import SessionLocal
+    # db_strategy = DbStrategy(SessionLocal)
+    # vectorizer.run(db_strategy)

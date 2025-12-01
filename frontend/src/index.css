@@ -2,9 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
-/* (선택) 기본 배경색 강제 지정 */
+/* 전체 배경 및 폰트 설정 */
 body {
-  background-color: #050505;
-  color: white;
   margin: 0;
+  padding: 0;
+  background-color: #050505; /* Deep Dark Background */
+  color: #ffffff;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 스크롤바 디자인 (Chrome, Safari) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #333; 
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555; 
+}
+
+/* 텍스트 선택 시 색상 (보라색 포인트) */
+::selection {
+  background: #8b5cf6; /* Violet-500 */
+  color: white;
+}
+
+/* 유틸리티 클래스 추가 */
+.glass-panel {
+  @apply bg-[#121212]/80 backdrop-blur-md border border-white/10;
 }

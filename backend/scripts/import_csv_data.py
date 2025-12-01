@@ -3,8 +3,13 @@ import os
 import csv
 import uuid
 import re
+import pickle
+import numpy as np
+import torch
 import time
+from PIL import Image
 from pathlib import Path
+from transformers import CLIPProcessor, CLIPModel
 import logging
 
 # 상위 폴더(app)를 모듈 경로에 추가
@@ -22,8 +27,9 @@ BASE_DIR = Path("/app")
 DATA_DIR = BASE_DIR / "data"
 IMAGE_DIR = DATA_DIR / "images"
 CSV_PATH = DATA_DIR / "products.csv"
+VECTOR_DB_PATH = DATA_DIR / "product_vectors.pkl"
 
-# --- [1. 카테고리 추론] ---
+# --- [1. 카테고리 추론 (우선순위 적용)] ---
 def infer_category(name):
     if not name: return "Etc"
     name = name.lower().replace(" ", "")
@@ -38,14 +44,10 @@ def infer_category(name):
     else: return "Etc"
 
 # --- [2. 성별 추론] ---
-def infer_gender(row, category):
+def infer_gender(row):
     desc = str(row.get('description', '')).replace(" ", "")
     name = str(row.get('product_name', '')).replace(" ", "")
     
-    # 카테고리 기반 강제 지정
-    if category in ["Onepiece", "Skirt", "Blouse"]: return "Women"
-
-    # 키워드 기반
     if "남성용" in desc or "남성용" in name: return "Men"
     if "여성용" in desc or "여성용" in name: return "Women"
     
@@ -75,9 +77,16 @@ def clean_price(price_str):
         except: return 0
 
 def upload_data():
-    logger.info("🚀 [Start] CSV -> MySQL 데이터 로드 시작 (벡터 생성 제외)")
+    logger.info("🚀 [Start] 데이터 로더 시작 (Progress Bar ver.)")
+    
+    logger.info("📥 [AI] CLIP 모델 로딩 중...")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_id = "openai/clip-vit-large-patch14"
+    model = CLIPModel.from_pretrained(model_id).to(device)
+    processor = CLIPProcessor.from_pretrained(model_id)
     
     db: Session = SessionLocal()
+    vector_data_list = []
 
     try:
         if not CSV_PATH.exists():
@@ -90,11 +99,11 @@ def upload_data():
         except UnicodeDecodeError:
             encoding = 'cp949'
 
-        # 전체 개수 파악
+        # 1. 전체 개수 세기 (Progress Bar용)
         total_rows = 0
         with open(CSV_PATH, 'r', encoding=encoding) as f:
-            total_rows = sum(1 for row in csv.reader(f)) - 1
-
+            total_rows = sum(1 for row in csv.reader(f)) - 1 # 헤더 제외
+        
         print(f"📊 총 처리 대상: {total_rows}건")
 
         with open(CSV_PATH, 'r', encoding=encoding) as f:
@@ -103,7 +112,7 @@ def upload_data():
             clean_header = [h.strip().replace('\ufeff', '') for h in raw_header]
             reader = csv.DictReader(f, fieldnames=clean_header)
             
-            # [DB 초기화] 기존 데이터 삭제
+            # 초기화
             db.query(Product).delete()
             db.commit()
             
@@ -135,9 +144,9 @@ def upload_data():
 
                     p_name = row.get('product_name', '').strip() or 'No Name'
                     
-                    # 추론 실행
+                    # 추론
                     auto_category = infer_category(p_name)
-                    auto_gender = infer_gender(row, auto_category)
+                    auto_gender = infer_gender(row)
                     auto_season = infer_season(row)
                     p_price = clean_price(row.get('price'))
 
@@ -154,24 +163,39 @@ def upload_data():
                         category=auto_category,
                         image_file=image_filename
                     )
-                    
                     db.merge(product)
+
+                    # 벡터 생성
+                    image = Image.open(img_path).convert("RGB")
+                    inputs = processor(images=image, return_tensors="pt", padding=True).to(device)
+                    with torch.no_grad():
+                        vector = model.get_image_features(**inputs).squeeze().cpu().numpy()
+                    
+                    vector_data_list.append({"id": p_id, "vector": vector})
+                    
                     count += 1
                     
-                    # 진행률 표시
-                    if count % 50 == 0:
+                    # [진행률 표시 로직] 10개마다 로그 출력
+                    if count % 10 == 0:
+                        elapsed = time.time() - start_time
+                        avg_time = elapsed / count
+                        remain_time = (total_rows - count) * avg_time
                         percent = (count / total_rows) * 100
-                        print(f"⏳ [{count}/{total_rows}] {percent:.1f}% 완료 | {p_name[:10]}...", flush=True)
+                        print(f"⏳ [{count}/{total_rows}] {percent:.1f}% 완료 | 남은시간: 약 {int(remain_time)}초 | 처리중: {p_name[:20]}...", flush=True)
 
                 except Exception as e:
                     skipped += 1
                     continue
             
             db.commit()
+            
+            with open(VECTOR_DB_PATH, 'wb') as vf:
+                pickle.dump(vector_data_list, vf)
 
             print("\n" + "="*40)
-            print(f"🎉 DB 저장 완료! (소요시간: {int(time.time() - start_time)}초)")
-            print(f"✅ 저장된 상품 수: {count}건")
+            print(f"🎉 작업 완료! (소요시간: {int(time.time() - start_time)}초)")
+            print(f"✅ DB 저장: {count}건")
+            print(f"✅ 벡터 생성: {len(vector_data_list)}건")
             print(f"⏭️ 스킵됨: {skipped}건")
             print("="*40)
 

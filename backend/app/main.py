@@ -1,52 +1,64 @@
 import logging
-import os
+import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
-# 모듈 임포트 (wishlist 라우터 추가!)
-from .routers import auth, products, wishlist
-from .database import engine, Base
+# 모듈 임포트
+try:
+    from app.routers import auth, products, wishlist
+    from app.database import engine, Base
+except ImportError:
+    from .routers import auth, products, wishlist
+    from .database import engine, Base
 
-# --- 1. 설정 및 로깅 초기화 ---
-logging.basicConfig(level=logging.INFO)
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 logger = logging.getLogger(__name__)
 
-# --- 2. 수명 주기 관리 (Lifespan Events) ---
-# 서버가 시작될 때 무거운 AI 모델을 미리 로드합니다.
+# [핵심 경로 수정] Docker 환경에 맞춰 절대 경로 사용
+# Dockerfile의 WORKDIR가 /app 이므로 데이터는 /app/data
+IMAGE_DIR = Path("/app/data/images")
+
+if not IMAGE_DIR.exists():
+    IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info(f"📁 이미지 폴더 생성: {IMAGE_DIR}")
+else:
+    logger.info(f"📂 이미지 폴더 확인: {IMAGE_DIR}")
+
+# 수명 주기 (AI 모델 로드)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 서버 시작 중... AI 모델 및 벡터 DB 로딩을 시작합니다.")
+    logger.info("🚀 [System] 서버 시작... AI 모델 로딩 시도...")
+    Base.metadata.create_all(bind=engine)
     
-    # (중요) products 모듈에 있는 AI 로드 함수 실행
-    products.load_ai_models()
-    
-    yield # 애플리케이션 실행 (Waiting for requests...)
-    
-    logger.info("🛑 서버 종료 중... 리소스를 정리합니다.")
+    try:
+        # products.py의 전역변수 ml_models를 채우는 함수 호출
+        products.load_ai_models()
+        logger.info("✅ [AI] 모델 로드 로직 실행 완료.")
+    except Exception as e:
+        logger.error(f"❌ [AI] 모델 로드 중 에러 발생: {e}")
 
-# --- 3. 앱 초기화 ---
-# DB 테이블 자동 생성 (users, products, wishlists 테이블이 없으면 생성)
-Base.metadata.create_all(bind=engine)
+    yield
+    logger.info("🛑 [System] 서버 종료.")
 
-# FastAPI 앱 인스턴스 생성
+# 앱 초기화
 app = FastAPI(
-    title="Modify AI Search Engine",
-    version="2.1.0",
+    title="Modify AI Search",
+    version="2.2.0",
     lifespan=lifespan
 )
 
-# --- 4. 미들웨어 설정 (CORS) ---
-# 프론트엔드(React)와의 통신 허용
-origins = [
-    "http://localhost",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "*" # 개발 단계 편의상 전체 허용
-]
+# CORS 설정
+origins = ["*"] # 개발용 전체 허용
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,29 +68,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 5. 정적 파일 서빙 (이미지) ---
-# 경로 계산: backend/app/main.py -> (3단계 위) -> data/images
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-IMAGE_DIR = PROJECT_ROOT / "data" / "images"
-
-# 이미지가 저장될 폴더가 없으면 자동 생성
-IMAGE_DIR.mkdir(parents=True, exist_ok=True)
-
-# URL 예시: http://localhost:8000/static/images/파일명.jpg
+# 정적 파일 서빙
 app.mount("/static/images", StaticFiles(directory=str(IMAGE_DIR)), name="static_images")
 
-# --- 6. 라우터 등록 ---
-# 각 기능별로 쪼개진 라우터를 메인 앱에 연결
-app.include_router(auth.router)      # 회원가입, 로그인
-app.include_router(products.router)  # 상품 검색, 등록, AI
-app.include_router(wishlist.router)  # (!!!) 찜하기 기능 추가
+# 글로벌 에러 핸들러
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"🔥 [Server Error] {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc)},
+    )
 
-# --- 7. 기본 엔드포인트 (Health Check) ---
+# 라우터 등록
+app.include_router(auth.router)
+app.include_router(products.router)
+app.include_router(wishlist.router)
+
 @app.get("/")
 def read_root():
-    return {"message": "Modify AI Search Backend System is Ready (v2.1)"}
+    return {"status": "online", "image_dir": str(IMAGE_DIR)}
 
-# --- 8. 서버 실행 (로컬 디버깅용) ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -1,39 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-// (!!!) 아이콘 임포트: 검색, 업로드, AI모드, 로딩, 이미지, 등록, 찜
-import { Search, Upload, Sparkles, Loader2, Image as ImageIcon, PlusSquare, Heart } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Search, Upload, Sparkles, Loader2, X, Globe, 
+  ChevronDown, Heart, PlusSquare 
+} from 'lucide-react';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  
-  // 상태 관리
+  const searchInputRef = useRef(null);
+
+  // --- 상태 관리 ---
+  const [userInfo, setUserInfo] = useState(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [debugInfo, setDebugInfo] = useState(null); // AI 분석 정보 저장
+  const [searchMode, setSearchMode] = useState('smart'); // 'smart' or 'text'
+  const [isModeOpen, setIsModeOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchMode, setSearchMode] = useState('text'); // 'text' or 'smart'
+  const [showHistory, setShowHistory] = useState(false);
 
-  // [API] 텍스트 및 AI 스마트 검색 핸들러
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  // 환경 변수 처리 (Docker 환경 대응)
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+  // 1. 초기 데이터 로드 (로그인 정보)
+  useEffect(() => {
+    const userEmail = localStorage.getItem('user_email');
+    if (userEmail) {
+      setUserInfo({ name: userEmail.split('@')[0] });
+    }
+  }, []);
+
+  // 2. 검색 실행 함수
+  const executeSearch = async (searchQuery) => {
+    if (!searchQuery.trim()) return;
 
     setIsLoading(true);
+    setShowHistory(false);
+    setIsModeOpen(false);
+    setQuery(searchQuery);
     setResults([]);
+    setDebugInfo(null); // 이전 분석 정보 초기화
 
     try {
-      // 모드에 따른 엔드포인트 결정
       const endpoint = searchMode === 'smart' ? '/search/smart' : '/search/text';
       
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query, top_k: 20 }),
+        body: JSON.stringify({ query: searchQuery, top_k: 20 }),
       });
 
-      if (!response.ok) throw new Error('Network response was not ok');
+      if (!response.ok) throw new Error("Search failed");
       const data = await response.json();
-      setResults(data);
+
+      // [중요] 응답 데이터 구조에 따라 분기 처리
+      if (Array.isArray(data)) {
+        // 일반 텍스트 검색 결과 (리스트만 옴)
+        setResults(data);
+        setDebugInfo(null);
+      } else {
+        // 스마트 검색 결과 ({ products: [], debug_info: {} })
+        setResults(data.products || []);
+        setDebugInfo(data.debug_info || null);
+      }
+
     } catch (error) {
       console.error("Search Error:", error);
       alert("검색 중 오류가 발생했습니다.");
@@ -42,176 +73,252 @@ const HomePage = () => {
     }
   };
 
-  // [API] 이미지 검색 핸들러 (파일 선택 시 자동 업로드)
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    executeSearch(query);
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setIsLoading(true);
     setResults([]);
-
+    setDebugInfo(null);
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('top_k', 20);
 
     try {
-      const response = await fetch('http://localhost:8000/search/image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Upload failed');
-      const data = await response.json();
-      setResults(data);
-    } catch (error) {
-      console.error("Image Search Error:", error);
-      alert("이미지 검색 실패");
-    } finally {
-      setIsLoading(false);
+      const res = await fetch(`${API_URL}/search/image`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error("Image search failed");
+      
+      const data = await res.json();
+      setResults(Array.isArray(data) ? data : data.products || []);
+    } catch (err) { 
+        console.error(err);
+        alert("이미지 검색 실패"); 
+    } finally { 
+        setIsLoading(false); 
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white pb-20">
-      {/* --- Header Section --- */}
-      <div className="sticky top-0 z-50 bg-[#050505]/80 backdrop-blur-md border-b border-white/5 pb-6 pt-6 px-4">
-        <div className="max-w-6xl mx-auto relative">
-          
-          {/* [Navigation Buttons] 우측 상단 배치 */}
-          <div className="absolute right-0 top-0 hidden md:flex space-x-3">
-            {/* 1. 찜 목록 이동 버튼 */}
-            <button 
-              onClick={() => navigate('/wishlist')}
-              className="flex items-center space-x-2 text-pink-400 hover:text-pink-300 transition-colors text-sm font-medium border border-gray-800 hover:border-pink-500/50 rounded-lg px-3 py-2"
-            >
-              <Heart size={16} fill="currentColor" />
-              <span>Wishlist</span>
-            </button>
-
-            {/* 2. 상품 등록(Admin) 이동 버튼 */}
-            <button 
-              onClick={() => navigate('/admin')}
-              className="flex items-center space-x-2 text-gray-500 hover:text-purple-400 transition-colors text-sm font-medium border border-gray-800 hover:border-purple-500/50 rounded-lg px-3 py-2"
-            >
-              <PlusSquare size={16} />
-              <span>Add Product</span>
-            </button>
-          </div>
-
-          <div className="max-w-2xl mx-auto space-y-6">
-            {/* Logo & Title */}
-            <div className="flex justify-center items-center space-x-2">
-              <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 tracking-tighter">
-                Modify
-              </h1>
-              <span className="text-gray-500 text-sm font-light">AI Fashion Engine</span>
-            </div>
-
-            {/* Search Bar Container */}
-            <form onSubmit={handleSearch} className="relative group">
-              {/* Background Glow Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-500"></div>
-              
-              <div className="relative flex items-center bg-[#15151a] border border-gray-700 rounded-2xl p-2 shadow-2xl">
-                {/* Search Icon */}
-                <div className="pl-3 pr-2">
-                  <Search className="text-gray-400" size={20} />
-                </div>
-
-                {/* Text Input */}
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="원하는 스타일을 입력하세요 (예: 여름 린넨 셔츠)"
-                  className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-500 h-10 px-2"
-                />
-
-                {/* Mode Toggle Button */}
-                <button
-                  type="button"
-                  onClick={() => setSearchMode(searchMode === 'smart' ? 'text' : 'smart')}
-                  className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all mx-2
-                    ${searchMode === 'smart' 
-                      ? 'bg-purple-500/20 text-purple-300 border border-purple-500/50' 
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-                >
-                  <Sparkles size={14} />
-                  <span>{searchMode === 'smart' ? 'AI Mode' : 'Basic'}</span>
-                </button>
-
-                {/* Image Upload Button */}
-                <label className="cursor-pointer p-2 rounded-xl hover:bg-gray-800 text-gray-400 hover:text-white transition-colors">
-                  <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
-                  <Upload size={20} />
-                </label>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  className="ml-2 px-6 py-2.5 bg-white text-black rounded-xl font-bold hover:bg-gray-200 transition-colors"
-                >
-                  Search
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+    <div 
+        className="w-full min-h-full pb-20 relative"
+        onClick={() => { setShowHistory(false); setIsModeOpen(false); }}
+    >
+      
+      {/* --- Top Utility Bar (Sticky Header) --- */}
+      <div className="flex justify-end items-center gap-4 mb-10 sticky top-0 z-30 p-4 bg-gradient-to-b from-black via-black/90 to-transparent backdrop-blur-sm">
+        {userInfo && (
+            <span className="text-sm font-bold text-gray-400">
+                Hi, <span className="text-white">{userInfo.name}</span>
+            </span>
+        )}
+        <button 
+            onClick={() => navigate('/wishlist')} 
+            className="p-2 bg-gray-900 rounded-full hover:bg-gray-800 border border-white/10 transition text-gray-400 hover:text-pink-500"
+            title="찜한 목록"
+        >
+            <Heart size={20} />
+        </button>
+        <button 
+            onClick={() => navigate('/admin')} 
+            className="p-2 bg-gray-900 rounded-full hover:bg-gray-800 border border-white/10 transition text-gray-400 hover:text-violet-500"
+            title="관리자 (상품 등록)"
+        >
+            <PlusSquare size={20} />
+        </button>
       </div>
 
-      {/* --- Results Grid Section --- */}
-      <div className="max-w-7xl mx-auto px-4 mt-8">
-        {isLoading ? (
-          // Loading State
-          <div className="flex flex-col items-center justify-center h-64 space-y-4">
-            <Loader2 className="animate-spin text-purple-500" size={40} />
-            <p className="text-gray-400 animate-pulse">AI가 스타일을 분석 중입니다...</p>
-          </div>
-        ) : (
-          <>
-            {results.length > 0 ? (
-              // Results Grid (Masonry Layout)
-              <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
-                {results.map((product) => (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileHover={{ y: -5 }}
-                    onClick={() => navigate(`/product/${product.id}`)} // 클릭 시 상세 페이지로 이동
-                    className="break-inside-avoid relative group rounded-xl overflow-hidden bg-[#1a1a20] border border-white/5 cursor-pointer"
-                  >
-                    <img
-                      src={`http://localhost:8000/static/images/${product.image_file}`}
-                      alt={product.product_name}
-                      className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
-                      onError={(e) => {e.target.src = "https://via.placeholder.com/300x400?text=No+Image"}}
-                    />
-                    
-                    {/* Hover Overlay Info */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                      <h3 className="text-white font-semibold text-sm line-clamp-1">{product.product_name || "상품명 없음"}</h3>
-                      <div className="flex justify-between items-center mt-1">
-                        <span className="text-purple-400 text-xs font-bold">
-                          {product.price ? `${product.price.toLocaleString()}원` : "가격 미정"}
-                        </span>
-                        <span className="text-gray-400 text-[10px] bg-white/10 px-2 py-0.5 rounded-full">
-                          {product.brand || "Brand"}
-                        </span>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              // Empty State (결과 없음)
-              <div className="text-center text-gray-500 mt-20">
-                <ImageIcon size={48} className="mx-auto mb-4 opacity-20" />
-                <p>검색 결과가 없습니다. <br />스타일 키워드나 이미지로 검색하거나, <br />우측 상단의 <b>Add Product</b> 버튼으로 상품을 등록해보세요.</p>
-              </div>
-            )}
-          </>
+      {/* --- Main Content --- */}
+      <div className="flex flex-col items-center px-4">
+        
+        {/* Title (결과가 없을 때만 표시) */}
+        {results.length === 0 && !isLoading && (
+             <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center mb-12 mt-10"
+             >
+               <h1 className="text-4xl md:text-6xl font-extrabold mb-4">
+                 Find Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-pink-500">Vibe</span>
+               </h1>
+               <p className="text-gray-400 text-lg">AI가 당신이 원하는 스타일을 찾아드립니다.</p>
+             </motion.div>
         )}
+
+        {/* --- Search Bar Container --- */}
+        <div className={`relative w-full max-w-3xl z-20 transition-all duration-500 ${results.length > 0 ? 'mb-6' : 'mb-20'}`} onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleSearchSubmit} className="relative group">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600 to-pink-600 rounded-2xl opacity-30 group-hover:opacity-60 transition duration-500 blur"></div>
+                <div className="relative flex items-center bg-[#121212] rounded-2xl border border-white/10 shadow-2xl p-2 h-16">
+                    
+                    {/* Mode Toggle */}
+                    <div className="relative border-r border-white/10 pr-2 mr-2">
+                        <button
+                            type="button"
+                            onClick={() => setIsModeOpen(!isModeOpen)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors text-sm font-medium text-gray-300"
+                        >
+                            {searchMode === 'smart' ? (
+                                <div className="flex items-center gap-2 text-violet-400">
+                                    <Sparkles size={18} /> <span className="hidden md:inline">AI Search</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 text-gray-400">
+                                    <Globe size={18} /> <span className="hidden md:inline">Keyword</span>
+                                </div>
+                            )}
+                            <ChevronDown size={14} className={`text-gray-500 transition-transform ${isModeOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        
+                        {/* Mode Dropdown */}
+                        {isModeOpen && (
+                            <div className="absolute top-full left-0 mt-2 w-40 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl overflow-hidden z-30">
+                                <button type="button" onClick={() => { setSearchMode('smart'); setIsModeOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm text-gray-300 flex items-center gap-2">
+                                    <Sparkles size={16} className="text-violet-400"/> AI Search
+                                </button>
+                                <button type="button" onClick={() => { setSearchMode('text'); setIsModeOpen(false); }} className="w-full text-left px-4 py-3 hover:bg-white/5 text-sm text-gray-300 flex items-center gap-2">
+                                    <Globe size={16} className="text-gray-400"/> Keyword
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Input Field */}
+                    <input
+                        ref={searchInputRef}
+                        type="text"
+                        value={query}
+                        onFocus={() => setShowHistory(true)}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder={searchMode === 'smart' ? "예: 여름 바닷가에서 입을 시원한 원피스 찾아줘" : "상품명, 브랜드 검색"}
+                        className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-500 text-lg h-full px-2"
+                    />
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                        {query && (
+                            <button type="button" onClick={() => {setQuery(''); setResults([]); setDebugInfo(null);}} className="p-2 text-gray-500 hover:text-white transition">
+                                <X size={18} />
+                            </button>
+                        )}
+                        <label className="cursor-pointer p-2 hover:bg-white/10 rounded-xl transition text-gray-400 hover:text-white" title="이미지 검색">
+                            <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                            <Upload size={20} />
+                        </label>
+                        <button type="submit" className="bg-white text-black p-3 rounded-xl hover:bg-gray-200 transition-transform active:scale-95">
+                            <Search size={20} />
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {/* --- [Safe] AI Analysis Result (Smart Mode & 결과 있음 & DebugInfo 유효함) --- */}
+        {searchMode === 'smart' && results.length > 0 && debugInfo && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-3xl mb-8 p-4 rounded-xl bg-violet-900/20 border border-violet-500/30 backdrop-blur-sm"
+          >
+            <div className="flex items-start gap-3">
+              <Sparkles className="text-violet-400 mt-1 flex-shrink-0" size={18} />
+              <div className="text-sm">
+                <p className="text-gray-300 mb-2">
+                  AI가 <strong>"{debugInfo.query || query}"</strong>를 분석했습니다:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {/* 시각적 키워드 (null 체크 필수) */}
+                  {debugInfo.visual_keyword && (
+                      <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-300 text-xs border border-violet-500/30">
+                        🎨 특징: {debugInfo.visual_keyword}
+                      </span>
+                  )}
+                  
+                  {/* 필터 정보 (null 체크 필수) */}
+                  {debugInfo.filters && Object.entries(debugInfo.filters).map(([key, value]) => (
+                    value && (
+                      <span key={key} className="px-2 py-1 rounded bg-blue-500/20 text-blue-300 text-xs border border-blue-500/30">
+                        {key}: {value}
+                      </span>
+                    )
+                  ))}
+                  
+                  {/* 검색 모드 표시 */}
+                  {debugInfo.mode && (
+                      <span className="px-2 py-1 rounded bg-gray-700 text-gray-300 text-xs border border-gray-600">
+                        Mode: {debugInfo.mode}
+                      </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* --- Results Grid (Masonry Layout) --- */}
+        <div className="w-full max-w-7xl pb-20">
+            {isLoading && (
+               <div className="py-20 flex flex-col items-center justify-center text-gray-500">
+                   <Loader2 size={40} className="animate-spin text-violet-500 mb-4" />
+                   <p className="animate-pulse text-sm">AI가 스타일을 분석 중입니다...</p>
+               </div>
+            )}
+            
+            {!isLoading && results.length === 0 && query && (
+                <div className="text-center text-gray-500 py-10">
+                    <p>검색 결과가 없습니다.</p>
+                </div>
+            )}
+            
+            {!isLoading && results.length > 0 && (
+               <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+                   {results.map((product) => (
+                       <motion.div
+                           key={product.id}
+                           initial={{ opacity: 0, y: 20 }}
+                           animate={{ opacity: 1, y: 0 }}
+                           whileHover={{ y: -5 }}
+                           onClick={() => navigate(`/product/${product.id}`)}
+                           className="break-inside-avoid relative group rounded-2xl overflow-hidden bg-[#121212] border border-white/5 cursor-pointer shadow-lg hover:shadow-violet-900/20 transition-all duration-300"
+                       >
+                           {/* 이미지 경로: 백엔드 정적 파일 서빙 */}
+                           <div className="aspect-[3/4] w-full overflow-hidden bg-gray-800 relative">
+                               <img
+                                   src={`${API_URL}/static/images/${product.image_file}`}
+                                   alt={product.product_name}
+                                   loading="lazy"
+                                   className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-500"
+                                   onError={(e) => {
+                                       e.target.onerror = null; 
+                                       e.target.src = "https://via.placeholder.com/300x400?text=No+Image";
+                                       e.target.parentElement.classList.add("bg-gray-700"); // 로드 실패 시 배경색 변경
+                                   }}
+                               />
+                           </div>
+                           
+                           {/* 상품 정보 오버레이 */}
+                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                               <p className="text-gray-300 text-xs mb-1">{product.category || 'Item'}</p>
+                               <h3 className="text-white font-bold text-sm line-clamp-1 mb-1">{product.product_name}</h3>
+                               <div className="flex justify-between items-center">
+                                   <span className="text-white font-bold">
+                                       {product.price ? product.price.toLocaleString() : '가격미정'}원
+                                   </span>
+                                   <div className="p-1.5 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/40 transition">
+                                        <Heart size={14} className="text-white" />
+                                   </div>
+                               </div>
+                           </div>
+                       </motion.div>
+                   ))}
+               </div>
+            )}
+        </div>
       </div>
     </div>
   );

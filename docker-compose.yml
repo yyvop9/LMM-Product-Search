@@ -1,44 +1,10 @@
 version: '3.8'
 
 services:
-  # --- 3. 프론트엔드 (React) 서비스 ---
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
-
-  # --- 2. 백엔드 (FastAPI) 서비스 ---
-  backend:
-    build:
-      context: ./backend
-    container_name: lmm-product-search-backend-1 # (선택) 컨테이너 이름 고정
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/data
-      - ./backend:/app
-    environment:
-      - DB_HOST=db
-      - PYTHONUNBUFFERED=1
-      # .env 파일의 내용도 여기서 읽어오지만, 명시적으로 적어주면 더 확실함
-      - DB_USER=root
-      - DB_PASSWORD=12345
-      - DB_NAME=lmm_project
-    depends_on:
-      - db
-    # (!!!) [핵심 수정] 이 줄을 반드시 추가하세요!
-    # 에러 원인인 'python app/main.py' 대신 uvicorn 모듈 실행 방식을 사용합니다.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
   # --- 1. 데이터베이스 (MySQL) 서비스 ---
   db:
     image: mysql:8.0
+    container_name: lmm-db
     ports:
       - "3307:3306"
     environment:
@@ -46,6 +12,48 @@ services:
       MYSQL_DATABASE: lmm_project
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # --- 2. 백엔드 (FastAPI) 서비스 ---
+  backend:
+    build:
+      context: ./backend
+    container_name: lmm-backend  # [수정] 이름을 lmm-backend로 통일 (명령어 입력 편의성)
+    ports:
+      - "8000:8000"
+    volumes:
+      # [핵심 수정] ./data를 컨테이너의 /app/data로 연결해야 파이썬이 인식함
+      - ./data:/app/data
+      - ./backend:/app
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=12345
+      - DB_NAME=lmm_project
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      db:
+        condition: service_healthy
+    # uvicorn 실행 명령 (기존 유지)
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # --- 3. 프론트엔드 (React) 서비스 ---
+  frontend:
+    build:
+      context: ./frontend
+    container_name: lmm-frontend # [수정] 이름 명시
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
 
 volumes:
   mysql-data:

@@ -25,9 +25,13 @@ dependencies:
     - python-dotenv
     - transformers
     - scikit-learn
-    - python-multipart
-    - python-jose[cryptography]
-    - passlib[bcrypt]
     - ibm-watsonx-ai
     - deep-translator
-    - safetensors  # (!!!) [추가] 모델 로드 필수 라이브러리
+    - safetensors
+    - requests
+    - "python-multipart"
+    - "python-jose[cryptography]"
+    - "email-validator"
+    # [핵심 수정] passlib 호환성을 위해 bcrypt 버전을 4.0.1로 고정합니다.
+    - "passlib"
+    - "bcrypt==4.0.1"
