@@ -1,147 +1,147 @@
-🛍️ Modify (LMM AI Product Search Engine)
+# 🛍️ Modify (LMM AI Fashion Search Engine)
 
-Modify는 LMM(Large Multimodal Model)인 CLIP과 LLM인 IBM Watsonx를 결합한 차세대 패션 검색 엔진입니다.
-단순 키워드 매칭을 넘어, 사용자의 의도(Context)와 시각적 스타일(Visual Style)을 이해하여 제품을 추천합니다.
+**Modify**는 텍스트와 이미지를 동시에 이해하는 **LMM(Large Multimodal Model)** 기반의 차세대 패션 검색 엔진입니다.
+단순 키워드 매칭을 넘어, **사용자의 의도(Context), 계절(Season), 가격대(Price)**를 AI가 스스로 추론하여 최적의 스타일을 제안합니다.
 
-(여기에 나중에 아키텍처 다이어그램 이미지를 넣으면 좋습니다)
+## 📊 System Architecture
 
+```mermaid
+graph TD
+    User([👤 User]) --> FE[🖥️ Frontend (React)]
+    FE --> BE[⚙️ Backend (FastAPI)]
+    
+    subgraph AI_Engine [🧠 AI Core]
+        BE --> Watsonx[IBM Watsonx (Intent Analysis)]
+        BE --> CLIP[OpenAI CLIP (Visual Embedding)]
+    end
+    
+    subgraph Data_Layer [📦 Data Store]
+        BE --> MySQL[(MySQL 8.0 - Meta)]
+        BE --> VectorDB[(Pickle - Vector Index)]
+    end
+    
+    DataScript[🛠️ Auto-Ingestion Script] --> MySQL
+    DataScript --> VectorDB
 ✨ Key Features (핵심 기능)
+AI 스마트 검색 (Smart Search):
 
-텍스트 검색 (Text Search): "파란색 셔츠" 등 키워드로 스타일 검색 (CLIP 기반 + 한영 번역기)
+"남자친구랑 데이트할 때 입을 옷" → (Gender: Women, Style: Date, Category: Onepiece/Skirt) 자동 변환.
 
-이미지 검색 (Image Search): 가지고 있는 옷 사진을 업로드하여 유사한 스타일 찾기
+"가성비 좋은 여름 니트" → (Price: ~50,000, Season: Summer, Material: Knit) 역설적 표현 이해.
 
-스마트 검색 (AI Agent): "크리스마스 데이트룩 추천해줘" 같은 자연어 질문 이해 (IBM Watsonx + Prompt Engineering)
+하이브리드 필터링 (Hybrid Search):
 
-연관 상품 추천: 상품 클릭 시 시각적으로 유사한 다른 상품 추천
+DB 메타데이터 필터링 + Vector 이미지 유사도 검색을 결합하여 정확도 극대화.
 
-하이브리드 필터링: AI 벡터 검색 + DB 메타데이터(계절, 성별 등) 필터링 결합
+검색 결과가 부족할 경우 자동으로 조건을 완화하여 유사 상품을 찾아내는 Fallback System 탑재.
 
-🛠️ Tech Stack (기술 스택)
+이미지 검색 (Visual Search):
 
-Frontend: React (Vite), CSS Modules
+사용자가 업로드한 옷 사진을 분석하여 가장 비슷한 스타일의 상품 추천.
 
-Backend: FastAPI (Python 3.10)
+데이터 파이프라인 자동화:
 
-AI Core: PyTorch, OpenAI CLIP, IBM Watsonx.ai (Llama 3)
+CSV와 이미지 파일만 넣으면 카테고리/성별/계절 자동 태깅 및 DB/벡터 동기화가 한 번에 수행됨.
 
-Database: MySQL 8.0 (Metadata), Pickle (Vector Index)
+🛠️ Tech Stack
+Frontend: React (Vite), Tailwind CSS, Framer Motion, Lucide React
 
-DevOps: Docker, Docker Compose
+Backend: FastAPI, SQLAlchemy, Pydantic
+
+AI/ML: OpenAI CLIP (ViT-L/14), IBM Watsonx (Llama-3-70b)
+
+Database: MySQL 8.0, FAISS/Pickle (Vector Store)
+
+Infra: Docker, Docker Compose
 
 🚀 Installation & Setup (설치 및 실행)
-
-이 프로젝트를 로컬 환경에서 실행하기 위한 가이드입니다.
-
 1. Prerequisites (사전 준비)
+Git & Docker Desktop 설치 필수.
 
-Git 설치
-
-Docker Desktop 설치 및 실행 (필수)
-
-(선택) Anaconda (로컬 데이터 전처리 시 필요)
+IBM Watsonx API Key (스마트 검색 기능 사용 시 필요).
 
 2. Clone Repository
+Bash
 
 git clone [https://github.com/](https://github.com/)[YOUR_GITHUB_ID]/LMM-Product-Search.git
 cd LMM-Product-Search
+3. Data Setup (⚠️ 필수)
+이 저장소는 대용량 데이터를 포함하지 않습니다. 프로젝트 루트에 data 폴더를 만들고 원본 데이터를 넣으세요.
 
-
-3. Data Setup (⚠️ 중요)
-
-이 저장소에는 대용량 이미지와 데이터 파일이 포함되어 있지 않습니다.
-data/ 폴더를 프로젝트 루트에 직접 생성하고, 원본 데이터를 위치시켜야 합니다.
+Plaintext
 
 LMM-Product-Search/
 └── data/
-    ├── images/               # (폴더) 제품 이미지 파일들 (.jpg)
-    ├── products.csv          # (파일) 제품 정보 CSV
-    └── product_vectors.pkl   # (파일) AI 벡터 데이터
-
-
-(※ product_vectors.pkl이 없다면 model/scripts/create_embeddings.py를 실행하여 생성해야 합니다.)
-
+    ├── images/           # (폴더) 제품 이미지 파일들 (.jpg, .png)
+    ├── products.csv      # (파일) 제품 메타데이터 CSV
+    └── product_vectors.pkl # (자동 생성됨, 초기엔 없어도 됨)
 4. Environment Variables (.env)
-
-각 폴더에 .env 파일을 생성하고 설정을 입력하세요. (.env.example 참고)
+각 폴더에 .env 파일을 생성하세요.
 
 backend/.env
+
+코드 스니펫
 
 DB_HOST=db
 DB_USER=root
 DB_PASSWORD=12345
 DB_NAME=lmm_project
 
-# IBM Watsonx (스마트 검색용)
+# IBM Watsonx (Smart Search)
 WATSONX_API_KEY=your_ibm_api_key
 WATSONX_PROJECT_ID=your_project_id
 WATSONX_URL=[https://us-south.ml.cloud.ibm.com](https://us-south.ml.cloud.ibm.com)
-
-
 frontend/.env
 
-VITE_API_BASE_URL=http://localhost:8000
+코드 스니펫
 
-
+VITE_API_URL=http://localhost:8000
 5. Run with Docker (실행)
+모든 서비스(Frontend, Backend, DB)를 한 번에 실행합니다.
 
-# 이미지 빌드 및 컨테이너 실행
-docker-compose up --build
+Bash
 
+docker-compose up -d --build
+Note: 최초 실행 시 MySQL 초기화 및 AI 모델 다운로드로 인해 약 3~5분 소요될 수 있습니다.
 
-최초 실행 시 AI 모델 다운로드 등으로 인해 10분 이상 소요될 수 있습니다.
+💾 Data Initialization (데이터 구축)
+복잡한 SQL 명령어 없이, 스크립트 하나로 해결됩니다. 아래 파이썬 스크립트를 실행하면 **[DB 초기화 + CSV 데이터 로드 + AI 벡터 생성]**이 자동으로 수행됩니다.
 
-💾 Database Initialization (최초 1회)
+Bash
 
-서버가 켜진 상태에서, 새 터미널을 열고 DB를 세팅해야 합니다.
+# 1. 데이터 구축 스크립트 실행 (도커 내부에서 실행됨)
+docker exec -it lmm-backend python scripts/import_csv_data.py
+기능: 기존 데이터를 안전하게 삭제하고, CSV와 이미지를 읽어 DB와 벡터 파일을 완벽하게 동기화합니다.
 
-테이블 생성:
+소요 시간: 이미지 2,000장 기준 약 10~15분 (CPU 모드).
 
-docker-compose exec db mysql -u root -p(본인db비번으로) lmm_project
+작업이 완료되면(🎉 작업 완료! 메시지), 서버를 재시작하여 데이터를 반영하세요.
 
+Bash
 
-MySQL 접속 후 아래 SQL 실행:
-
-CREATE TABLE IF NOT EXISTS products (
-    id VARCHAR(255) NOT NULL,
-    product_name VARCHAR(255) NULL,
-    description TEXT NULL,
-    brand VARCHAR(100) NULL,
-    color VARCHAR(100) NULL,
-    size VARCHAR(100) NULL,
-    price INT NULL,
-    season VARCHAR(100) NULL,
-    image_file VARCHAR(255) NULL,
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE IF NOT EXISTS search_logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    search_type VARCHAR(10) NOT NULL,
-    query VARCHAR(255) NULL,
-    filename VARCHAR(255) NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-exit
-
-
-데이터 업로드:
-
-docker-compose exec backend conda run -n lmm-backend python scripts/upload_to_mysql.py
-
-
+docker restart lmm-backend
 🖥️ Usage (사용 방법)
+웹사이트 접속: http://localhost:5173
 
-브라우저 접속: http://localhost:5173
+로그인: (DB 초기화 시 계정이 없다면 회원가입 진행)
 
-텍스트 검색: "겨울 코트" 입력 -> [검색]
+검색 테스트:
 
-AI 스마트 검색: "크리스마스 데이트룩 추천해줘" 입력 -> [✨ AI 추천]
+"여름에 입기 좋은 시원한 남자 셔츠"
 
-이미지 검색: 파일 업로드 -> [이미지로 검색]
+"가성비 좋은 검정 패딩"
 
-📊 Performance (성능 평가)
+"여자친구랑 데이트할 때 입을 옷"
 
-Accuracy: LLM 기반 쿼리 확장 및 필터링 도입으로 기존 키워드 검색 대비 정확도 3.5배 향상 (20% -> 75%)
+⚠️ Troubleshooting
+Q. 검색 결과가 0개입니다.
 
-Efficiency: 벡터 검색을 통해
+A. import_csv_data.py를 실행했는지 확인하세요. 실행 후 **반드시 docker restart lmm-backend**를 해야 서버가 벡터 데이터를 로드합니다.
+
+Q. 이미지가 엑박(Broken Image)으로 뜹니다.
+
+A. data/images 폴더에 실제 이미지 파일이 있는지 확인하세요. 파일명이 한글일 경우 CSV와 정확히 일치해야 합니다.
+
+Q. 로그인 시 422 에러가 뜹니다.
+
+A. 최신 코드가 적용되었는지 확인하세요. (git pull 또는 frontend/src/pages/LoginPage.jsx 확인)
