@@ -3,7 +3,7 @@ name: Deploy Frontend to S3
 on:
   push:
     branches:
-      - main     # 메인 브랜치에 푸시될 때 작동 (develop 브랜치면 develop으로 수정!)
+      - develop     # 메인 브랜치에 푸시될 때 작동 (develop 브랜치면 develop으로 수정!)
     paths:
       - 'frontend/**' # 프론트엔드 코드가 바뀔 때만 작동
 
