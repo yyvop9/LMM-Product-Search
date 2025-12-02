@@ -1,44 +1,53 @@
 name: Deploy Frontend to S3
 
 on:
+  # 1. 자동 트리거: develop 브랜치에 frontend 폴더 내용이 변경될 때
   push:
     branches:
-      - develop     # 메인 브랜치에 푸시될 때 작동 (develop 브랜치면 develop으로 수정!)
+      - develop
     paths:
-      - 'frontend/**' # 프론트엔드 코드가 바뀔 때만 작동
+      - 'frontend/**'
+  
+  # 2. 수동 트리거: Actions 탭에서 버튼 클릭으로 강제 실행 가능
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
+    # [중요] 모든 run 명령어의 기본 실행 위치를 'frontend' 폴더로 지정
     defaults:
       run:
         working-directory: ./frontend
 
     steps:
-      # 1. 코드 내려받기
+      # 1. 소스 코드 가져오기
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Node.js 설치
+      # 2. Node.js 환경 설정 및 캐싱
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+          # 캐시 키 생성을 위한 lock 파일 위치 지정 (루트 기준 경로)
           cache-dependency-path: frontend/package-lock.json
 
-      # 3. 의존성 설치
+      # 3. 의존성 설치 (Clean Install)
       - name: Install Dependencies
         run: npm ci
 
-      # 4. 빌드 (React -> HTML/JS 변환)
+      # 4. React 프로젝트 빌드
       - name: Build Project
         run: npm run build
         env:
-          # 백엔드 주소 (아직 배포 전이면 로컬호스트나 임시 주소 사용)
+          # 실제 배포 시 사용할 백엔드 API 주소 (필요 시 수정)
           VITE_API_URL: "http://localhost:8000"
+          # CI 환경임을 명시 (일부 라이브러리 경고 방지)
+          CI: false 
 
-      # 5. AWS 인증 (등록한 키 사용)
+      # 5. AWS 권한 설정
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -46,7 +55,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2 # 서울 리전
 
-      # 6. S3 업로드 (배포)
+      # 6. S3 버킷에 배포 (동기화)
       - name: Deploy to S3
         run: |
+          # dist 폴더의 내용을 S3 버킷으로 업로드 (--delete: S3에만 있는 불필요한 파일 삭제)
           aws s3 sync dist/ s3://${{ secrets.AWS_S3_BUCKET }} --delete
