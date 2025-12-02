@@ -348,8 +348,8 @@ def search_smart(req: SearchRequest, db: Session = Depends(database.get_db)):
 You are an elite AI Fashion Stylist. Analyze the Korean query deeply and extract precise JSON filters.
 
 [RULE 1: GENDER & CONTEXT]
-- Relationships: "남자친구/남편/아빠"(Boyfriend/Husband/Dad) -> User is Female looking for Male clothes -> Set "gender": "Men"
-- Relationships: "여자친구/아내/엄마"(Girlfriend/Wife/Mom) -> User is Male looking for Female clothes -> Set "gender": "Women"
+- Relationships: "남자친구/남편/아빠"(Boyfriend/Husband/Dad) -> User is Female looking for Male clothes -> Set "gender": "Women"
+- Relationships: "여자친구/아내/엄마"(Girlfriend/Wife/Mom) -> User is Male looking for Female clothes -> Set "gender": "Men"
 - Terminology: "보이프렌드 핏/맘핏"(Boyfriend/Mom fit) -> These are WOMEN'S styles -> Set "gender": "Women"
 - Override: Explicit "남자/남성"(Men's) or "여자/여성"(Women's) keywords have highest priority.
 

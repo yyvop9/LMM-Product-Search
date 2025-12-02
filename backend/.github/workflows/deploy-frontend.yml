@@ -1,0 +1,52 @@
+name: Deploy Frontend to S3
+
+on:
+  push:
+    branches:
+      - main     # 메인 브랜치에 푸시될 때 작동 (develop 브랜치면 develop으로 수정!)
+    paths:
+      - 'frontend/**' # 프론트엔드 코드가 바뀔 때만 작동
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      # 1. 코드 내려받기
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Node.js 설치
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # 3. 의존성 설치
+      - name: Install Dependencies
+        run: npm ci
+
+      # 4. 빌드 (React -> HTML/JS 변환)
+      - name: Build Project
+        run: npm run build
+        env:
+          # 백엔드 주소 (아직 배포 전이면 로컬호스트나 임시 주소 사용)
+          VITE_API_URL: "http://localhost:8000"
+
+      # 5. AWS 인증 (등록한 키 사용)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2 # 서울 리전
+
+      # 6. S3 업로드 (배포)
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/ s3://${{ secrets.AWS_S3_BUCKET }} --delete
